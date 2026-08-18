@@ -1,6 +1,6 @@
 // --- CONFIGURATION ---
 // IMPORTANT: Change this to your Railway URL once deployed (e.g. 'https://myntra-insight-production.up.railway.app')
-const BACKEND_API_URL = 'http://localhost:8000'; 
+const BACKEND_API_URL = 'https://myntra-insight-production.up.railway.app'; 
 
 // Supabase Credentials
 const SUPABASE_URL = 'https://lmvwdvueptvglihzhebp.supabase.co';
