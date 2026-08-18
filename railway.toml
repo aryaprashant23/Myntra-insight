@@ -1,0 +1,7 @@
+[build]
+builder = "nixpacks"
+
+[deploy]
+startCommand = "python backend/run_all.py"
+restartPolicyType = "never"
+cronSchedule = "0 */6 * * *"
