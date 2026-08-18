@@ -1,0 +1,10 @@
+fastapi
+uvicorn
+supabase
+groq
+python-dotenv
+google-play-scraper
+praw
+google-api-python-client
+pydantic
+apify-client
