@@ -21,6 +21,8 @@ def main():
     
     # 1. Scrape New Data
     run_script(os.path.join(os.path.dirname(__file__), 'scrapers', 'apify_reddit.py'))
+    run_script(os.path.join(os.path.dirname(__file__), 'scrapers', 'playstore.py'))
+    run_script(os.path.join(os.path.dirname(__file__), 'scrapers', 'youtube.py'))
     
     # 2. Clean and Filter Data
     run_script(os.path.join(os.path.dirname(__file__), 'processing', 'cleaner.py'))
