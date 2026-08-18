@@ -13,7 +13,19 @@ logger = logging.getLogger(__name__)
 
 APIFY_API_TOKEN = os.environ.get("APIFY_API_TOKEN")
 
-def fetch_reddit_data(search_term: str = "myntra wishlist", max_posts: int = 50, max_comments_per_post: int = 15):
+# Competitor keywords to filter OUT
+COMPETITOR_KEYWORDS = ["flipkart", "amazon", "ajio", "meesho", "nykaa", "tata cliq", "snapdeal", "shein"]
+
+def is_myntra_relevant(text: str) -> bool:
+    """Check if text is primarily about Myntra, not competitors."""
+    text_lower = text.lower()
+    # If it mentions a competitor more prominently than Myntra, skip it
+    for comp in COMPETITOR_KEYWORDS:
+        if comp in text_lower and "myntra" not in text_lower:
+            return False
+    return True
+
+def fetch_reddit_data(search_term: str = "myntra", max_posts: int = 50, max_comments_per_post: int = 15):
     """
     Fetches Reddit posts and comments using Apify's managed Reddit Scraper 
     (lekole/reddit-scraper or trudax/reddit-scraper).
@@ -30,7 +42,7 @@ def fetch_reddit_data(search_term: str = "myntra wishlist", max_posts: int = 50,
         # Prepare the Actor input
         run_input = {
             "searchQuery": search_term,
-            "subreddits": ["IndianFashionAddicts"],
+            "subreddits": ["IndianFashionAddicts", "india", "IndianStreetFashion", "Myntra"],
             "resultsLimit": max_posts,
             "sort": "new"
         }
@@ -50,6 +62,11 @@ def fetch_reddit_data(search_term: str = "myntra wishlist", max_posts: int = 50,
             text = item.get('text') or item.get('body') or item.get('title')
             
             if not text:
+                continue
+            
+            # Filter: only keep Myntra-relevant content
+            if not is_myntra_relevant(text):
+                logger.info(f"Skipping non-Myntra content: {text[:60]}...")
                 continue
                 
             record = {

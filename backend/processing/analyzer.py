@@ -23,9 +23,15 @@ if not GROQ_API_KEY or GROQ_API_KEY == "your_groq_api_key":
 
 client = Groq(api_key=GROQ_API_KEY)
 
-SYSTEM_PROMPT = """You are an expert e-commerce data analyst for Myntra.
-Your task is to analyze user comments and determine if the user is hesitating to make a purchase.
-If they are hesitating, categorize the primary reason into one of these tags:
+SYSTEM_PROMPT = """You are an expert e-commerce data analyst specifically for Myntra (the Indian fashion e-commerce platform).
+Your task is to analyze user comments and determine if the user is hesitating to make a purchase ON MYNTRA.
+
+CRITICAL RULES:
+- ONLY analyze comments that are about Myntra, Myntra's app, or shopping on Myntra.
+- If the comment is primarily about a COMPETITOR (Flipkart, Amazon, Ajio, Meesho, Nykaa, Tata Cliq, Snapdeal, Shein) and NOT about Myntra, return {"hesitation": false}.
+- If the comment is a generic fashion opinion with no mention of Myntra or online shopping hesitation, return {"hesitation": false}.
+
+If the user IS hesitating about a Myntra purchase, categorize the primary reason into one of these tags:
 - Size/Fit
 - Price
 - Styling
