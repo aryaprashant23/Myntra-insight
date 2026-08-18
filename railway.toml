@@ -2,6 +2,5 @@
 builder = "nixpacks"
 
 [deploy]
-startCommand = "python backend/run_all.py"
-restartPolicyType = "never"
-cronSchedule = "0 */6 * * *"
+startCommand = "uvicorn backend.main:app --host 0.0.0.0 --port $PORT"
+restartPolicyType = "on-failure"
