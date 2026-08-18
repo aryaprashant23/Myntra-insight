@@ -8,81 +8,40 @@ const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZ
 
 const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-// Color palette mapping for tags
-const tagColors = {
-    'Size/Fit': { bg: 'rgba(236, 72, 153, 0.2)', border: '#ec4899', text: 'text-pink-400' },
-    'Price': { bg: 'rgba(34, 197, 94, 0.2)', border: '#22c55e', text: 'text-green-400' },
-    'Styling': { bg: 'rgba(168, 85, 247, 0.2)', border: '#a855f7', text: 'text-purple-400' },
-    'Occasion': { bg: 'rgba(234, 179, 8, 0.2)', border: '#eab308', text: 'text-yellow-400' },
-    'Comparing': { bg: 'rgba(59, 130, 246, 0.2)', border: '#3b82f6', text: 'text-blue-400' },
-    'Window Shopping': { bg: 'rgba(249, 115, 22, 0.2)', border: '#f97316', text: 'text-orange-400' },
-    'Trust/Quality': { bg: 'rgba(239, 68, 68, 0.2)', border: '#ef4444', text: 'text-red-400' },
-    'Other': { bg: 'rgba(100, 116, 139, 0.2)', border: '#64748b', text: 'text-slate-400' },
+// Color mappings for specific tags
+const getTagColorClass = (tag) => {
+    const t = tag.toLowerCase();
+    if (t.includes('size') || t.includes('fit')) return 'text-error';
+    if (t.includes('price') || t.includes('money')) return 'text-secondary';
+    if (t.includes('trust') || t.includes('quality')) return 'text-primary';
+    return 'text-on-surface-variant';
 };
 
-const getTagColor = (tag) => tagColors[tag] || tagColors['Other'];
+// Generate HTML card for a single review
+const createReviewCard = (quote, tag, source) => {
+    const color = getTagColorClass(tag);
+    return `
+    <div class="p-3 bg-surface-container/40 rounded-lg border border-white/5 transition-colors hover:bg-surface-container/60">
+        <p class="font-code-md text-[13px] text-on-surface mb-2">"${quote}"</p>
+        <div class="flex justify-between items-center">
+            <span class="font-label-sm text-[10px] ${color} uppercase px-2 py-1 bg-white/5 rounded-full">${tag}</span>
+        </div>
+    </div>`;
+};
 
-// Animate counting numbers
-const animateValue = (id, start, end, duration) => {
-    let startTimestamp = null;
-    const step = (timestamp) => {
-        if (!startTimestamp) startTimestamp = timestamp;
-        const progress = Math.min((timestamp - startTimestamp) / duration, 1);
-        document.getElementById(id).innerHTML = Math.floor(progress * (end - start) + start);
-        if (progress < 1) {
-            window.requestAnimationFrame(step);
-        }
-    };
-    window.requestAnimationFrame(step);
-}
-
-// Render Chart
-let hesitationChartInstance = null;
-const renderChart = (tagCounts) => {
-    const ctx = document.getElementById('hesitationChart').getContext('2d');
-    
-    document.getElementById('chart-loader').style.display = 'none';
-
-    const labels = Object.keys(tagCounts);
-    const data = Object.values(tagCounts);
-    
-    const bgColors = labels.map(tag => getTagColor(tag).bg.replace('0.2', '0.6'));
-    const borderColors = labels.map(tag => getTagColor(tag).border);
-
-    if (hesitationChartInstance) {
-        hesitationChartInstance.destroy();
-    }
-
-    hesitationChartInstance = new Chart(ctx, {
-        type: 'doughnut',
-        data: {
-            labels: labels,
-            datasets: [{
-                data: data,
-                backgroundColor: bgColors,
-                borderColor: borderColors,
-                borderWidth: 1,
-                hoverOffset: 10
-            }]
-        },
-        options: {
-            responsive: true,
-            cutout: '70%',
-            plugins: {
-                legend: {
-                    position: 'bottom',
-                    labels: { color: '#cbd5e1', padding: 20, font: { family: 'Inter', size: 12 } }
-                }
-            }
-        }
-    });
-}
-
-// Generate Summary Text based on data
-const generateSummary = (total, topTag) => {
-    if (total === 0) return "No hesitations found in this timeframe. Run a scrape to fetch new data.";
-    return `In this timeframe, the AI identified <strong>${total}</strong> specific purchase hesitations. The most common bottleneck preventing checkout is <strong>${topTag}</strong>.`;
-}
+// Generate Summary Cards
+const createSummaryCard = (tag, count, sourceString, isTop) => {
+    const icon = isTop ? 'trending_up' : 'insights';
+    const color = isTop ? 'text-secondary' : 'text-primary';
+    return `
+    <div class="bg-surface-container p-4 rounded-lg border border-white/5">
+        <div class="font-label-sm ${color} mb-2 flex items-center gap-2">
+            <span class="material-symbols-outlined text-[16px]">${icon}</span> ${isTop ? 'Highest Friction Point' : 'Significant Friction'}
+        </div>
+        <p class="font-body-md text-on-surface font-bold text-lg">${tag}</p>
+        <div class="font-label-sm text-on-surface-variant mt-2 text-right">${count} Occurrences • Found in ${sourceString}</div>
+    </div>`;
+};
 
 // Fetch Data with Time Filter
 const fetchData = async () => {
@@ -96,10 +55,11 @@ const fetchData = async () => {
             timeConstraint = date.toISOString();
         }
 
-        document.getElementById('table-time-label').innerText = timeFilter === 'all' ? 'All Time' : `Last ${timeFilter} Days`;
+        // Fetch Analysis Results joined with Source
+        let analysisQuery = supabase.from('analysis_results')
+            .select('*, processed_reviews(*, raw_reviews(source))')
+            .order('analyzed_at', { ascending: false });
 
-        // 1. Fetch Analysis Results
-        let analysisQuery = supabase.from('analysis_results').select('*').order('analyzed_at', { ascending: false });
         if (timeConstraint) {
             analysisQuery = analysisQuery.gte('analyzed_at', timeConstraint);
         }
@@ -107,68 +67,64 @@ const fetchData = async () => {
         const { data: analysisData, error } = await analysisQuery;
         if (error) throw error;
         
-        animateValue('stat-hesitations', 0, analysisData.length, 1000);
-
-        // Process Data for Chart & Categorization
+        // Split data by source
+        const redditData = [];
+        const playstoreData = [];
+        const youtubeData = [];
         const tagCounts = {};
-        const groupedData = {}; // For categorization in table
-        
+
         analysisData.forEach(row => {
+            // Count for summary
             tagCounts[row.hesitation_tag] = (tagCounts[row.hesitation_tag] || 0) + 1;
-            if (!groupedData[row.hesitation_tag]) groupedData[row.hesitation_tag] = [];
-            groupedData[row.hesitation_tag].push(row);
+            
+            // Route to correct column
+            const source = row.processed_reviews?.raw_reviews?.source?.toLowerCase() || '';
+            if (source.includes('reddit')) {
+                redditData.push(row);
+            } else if (source.includes('youtube')) {
+                youtubeData.push(row);
+            } else {
+                playstoreData.push(row);
+            }
         });
-        
-        renderChart(tagCounts);
 
-        // Calculate Top Tag for Summary
-        let topTag = 'None';
-        let maxCount = 0;
-        for (const [tag, count] of Object.entries(tagCounts)) {
-            if (count > maxCount) { maxCount = count; topTag = tag; }
-        }
-        document.getElementById('summary-text').innerHTML = generateSummary(analysisData.length, topTag);
+        // Update UI Columns
+        const renderColumn = (id, data, emptyText) => {
+            const el = document.getElementById(id);
+            if (data.length === 0) {
+                el.innerHTML = `<div class="text-center text-on-surface-variant py-8 font-code-md text-[13px]">${emptyText}</div>`;
+            } else {
+                el.innerHTML = data.map(r => createReviewCard(r.extracted_quote, r.hesitation_tag, r.processed_reviews?.raw_reviews?.source)).join('');
+            }
+        };
 
-        // Process Data for Categorized Table
-        const tbody = document.getElementById('quotes-table-body');
-        tbody.innerHTML = ''; 
+        renderColumn('col-reddit', redditData, 'No recent Reddit hesitations found.');
+        renderColumn('col-playstore', playstoreData, 'No recent App Store hesitations found.');
+        renderColumn('col-youtube', youtubeData, 'No recent YouTube hesitations found.');
+
+        // Update Summary
+        const sortedTags = Object.entries(tagCounts).sort((a, b) => b[1] - a[1]);
+        const summaryContainer = document.getElementById('summary-container');
         
-        if (analysisData.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="2" class="px-6 py-12 text-center text-slate-500">No data available for this timeframe.</td></tr>';
+        if (sortedTags.length === 0) {
+            summaryContainer.innerHTML = '<div class="text-on-surface-variant w-full col-span-2 text-center py-4">Run the scraper to collect AI analytics.</div>';
         } else {
-            // Render Grouped by Tag
-            Object.keys(groupedData).sort().forEach((tag) => {
-                groupedData[tag].forEach((row, index) => {
-                    const tr = document.createElement('tr');
-                    tr.className = `hover:bg-slate-800/50 transition-colors`;
-                    
-                    const colorMeta = getTagColor(row.hesitation_tag);
-                    
-                    tr.innerHTML = `
-                        <td class="px-6 py-4 border-b border-slate-700/50 whitespace-nowrap">
-                            <span class="tag-badge bg-slate-900 border-slate-700 ${colorMeta.text}" style="background-color: ${colorMeta.bg}; border-color: ${colorMeta.border}">
-                                ${row.hesitation_tag}
-                            </span>
-                        </td>
-                        <td class="px-6 py-4 border-b border-slate-700/50 text-slate-300 italic">
-                            "${row.extracted_quote}"
-                        </td>
-                    `;
-                    tbody.appendChild(tr);
-                });
-            });
+            const topTag = sortedTags[0];
+            const secondTag = sortedTags.length > 1 ? sortedTags[1] : null;
+            
+            let html = createSummaryCard(topTag[0], topTag[1], "Multiple Sources", true);
+            if (secondTag) {
+                html += createSummaryCard(secondTag[0], secondTag[1], "Multiple Sources", false);
+            }
+            summaryContainer.innerHTML = html;
         }
 
-        // Update Total Stats (without time filters for global perspective)
+        // Update Badge
         const { count: totalRaw } = await supabase.from('raw_reviews').select('*', { count: 'exact', head: true });
-        animateValue('stat-total-reviews', 0, totalRaw || 0, 1000);
-
-        const { count: validProcessed } = await supabase.from('processed_reviews').select('*', { count: 'exact', head: true }).eq('is_valid', true);
-        animateValue('stat-valid-reviews', 0, validProcessed || 0, 1000);
+        document.getElementById('total-scraped-badge').innerText = `${totalRaw || 0} Total Reviews Ingested`;
 
     } catch (err) {
         console.error("Error fetching data:", err);
-        document.getElementById('table-loader').innerHTML = `<td colspan="2" class="px-6 py-12 text-center text-red-400">Error connecting to database.</td>`;
     }
 }
 
@@ -177,8 +133,7 @@ const triggerScrape = async () => {
     const btn = document.getElementById('btn-scrape');
     const icon = document.getElementById('icon-scrape');
     const text = document.getElementById('text-scrape');
-    const toast = document.getElementById('status-toast');
-    const toastMsg = document.getElementById('toast-message');
+    const statusMsg = document.getElementById('scrape-status');
 
     // UI Loading State
     btn.disabled = true;
@@ -193,33 +148,30 @@ const triggerScrape = async () => {
         });
 
         if (!response.ok) throw new Error("Failed to reach backend.");
-
-        const result = await response.json();
         
-        toast.classList.remove('hidden');
-        toastMsg.innerText = result.message;
+        statusMsg.classList.remove('hidden');
+        statusMsg.classList.replace('text-error', 'text-secondary');
+        statusMsg.innerText = "Scraping pipeline triggered! Data will refresh automatically.";
         
-        // Polling to refresh data every 10 seconds while background job runs
+        // Poll for fresh data
         let pollCount = 0;
         const pollInterval = setInterval(() => {
             fetchData();
             pollCount++;
-            if (pollCount > 6) clearInterval(pollInterval); // Stop polling after a minute
+            if (pollCount > 6) clearInterval(pollInterval);
         }, 10000);
 
     } catch (error) {
         console.error("Scrape API Error:", error);
-        toast.classList.remove('hidden', 'bg-emerald-500/10', 'text-emerald-400', 'border-emerald-500/50');
-        toast.classList.add('bg-red-500/10', 'text-red-400', 'border-red-500/50');
-        toastMsg.innerText = "Error: Cannot reach the backend API. Check if the server is running.";
-        document.getElementById('api-warning').classList.remove('hidden');
+        statusMsg.classList.remove('hidden');
+        statusMsg.classList.replace('text-secondary', 'text-error');
+        statusMsg.innerText = "Failed to connect to backend server. Check API URL.";
     } finally {
-        // Reset UI Button
         setTimeout(() => {
             btn.disabled = false;
             btn.classList.remove('opacity-50', 'cursor-not-allowed');
             icon.classList.remove('animate-spin');
-            text.innerText = "Scrape New Data";
+            text.innerText = "Scrape Data";
         }, 3000);
     }
 }
@@ -229,8 +181,10 @@ document.addEventListener('DOMContentLoaded', () => {
     fetchData();
     
     document.getElementById('time-filter').addEventListener('change', () => {
-        document.getElementById('quotes-table-body').innerHTML = '<tr id="table-loader"><td colspan="2" class="px-6 py-12 text-center text-slate-500"><i data-lucide="loader-2" class="w-6 h-6 animate-spin mx-auto mb-2"></i>Filtering data...</td></tr>';
-        lucide.createIcons();
+        const loader = '<div class="text-center text-on-surface-variant py-8"><span class="material-symbols-outlined animate-spin">refresh</span></div>';
+        document.getElementById('col-reddit').innerHTML = loader;
+        document.getElementById('col-playstore').innerHTML = loader;
+        document.getElementById('col-youtube').innerHTML = loader;
         fetchData();
     });
 
