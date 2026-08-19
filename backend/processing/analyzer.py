@@ -85,7 +85,7 @@ def analyze_reviews():
                     {"role": "system", "content": SYSTEM_PROMPT},
                     {"role": "user", "content": f"Analyze this comment:\n{text}"}
                 ],
-                model="openai/gpt-oss-120b", # Supported model for this API Key
+                model="llama-3.3-70b-versatile",
                 response_format={"type": "json_object"},
                 temperature=0.0
             )
